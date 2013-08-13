@@ -40,22 +40,22 @@ def rollUp(minLapse=60):
 
    for station in stationList:
       print station
-	      
+         
       aggResult = collection.aggregate([{"$match":{"stationCode":station}}, {"$group": {"_id":"null", "from":{"$min":"$date"}, "to":{"$max":"$date"}}}])
       minDate = aggResult['result'][0]['from']
       maxDate = aggResult['result'][0]['to']
-	   
+
       startHour = datetime(minDate.year, minDate.month, minDate.day, minDate.hour, 0, 0) 
       endHour = datetime(maxDate.year, maxDate.month, maxDate.day, maxDate.hour, 0, 0)
-	 
+
       mygenerator = datetimeIterator(startHour, endHour, timedelta(minutes=minLapse))
 
       for endHour in mygenerator:
-	 startHour = endHour - timedelta(minutes=minLapse)
-	 print station, startHour, endHour
-	 cur.execute('SELECT * FROM bom WHERE cdate > %s AND cdate < %s;', startHour, endHour)
-    # retrieve the records from the database
-    records = cur.fetchall()
-    print 'done'
+         startHour = endHour - timedelta(minutes=minLapse)
+         print station, startHour, endHour
+         cur.execute('SELECT * FROM bom WHERE cdate > %s AND cdate < %s;', startHour, endHour)
+         # retrieve the records from the database
+         records = cur.fetchall()
+         print 'done'
     
 rollUp(5)
