@@ -1,5 +1,6 @@
 from pymongo import Connection
 import pymongo, psycopg2
+from psycopg2 import extras
 from datetime import datetime, timedelta
  
 def datetimeIterator(from_date=None, to_date=None, delta=timedelta(minutes=60)):
