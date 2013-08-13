@@ -54,6 +54,8 @@ def rollUp(minLapse=60):
 	 startHour = endHour - timedelta(minutes=minLapse)
 	 print station, startHour, endHour
 	 cur.execute('SELECT * FROM bom WHERE cdate > %s AND cdate < %s;', startHour, endHour)
-
-      print 'done'
+    # retrieve the records from the database
+    records = cur.fetchall()
+    print 'done'
+    
 rollUp(5)
