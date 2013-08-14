@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html>
+  	<head>
+      <title>jQuery & Bottle</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <!-- Bootstrap -->
+      <link href="/css/bootstrap.min.css" rel="stylesheet" media="screen">
+      <!-- JQuery UI -->
+      <link href="http://code.jquery.com/ui/1.10.3/themes/ui-darkness/jquery-ui.css" rel="stylesheet" media="screen">
+    </head>
+
+    <style type="text/css">
+      svg {
+        font: 10px sans-serif;
+      }
+
+      #station, #variables {
+        color: #000;
+      }
+
+      .control-group {
+        overflow: hidden;
+      }
+
+      /*path {
+        fill: steelblue;
+        opacity: .75;
+      }*/
+
+      .class1 {
+        fill: steelblue;
+        opacity: .55;
+      }
+
+      .class2 {
+        fill: orange;
+        opacity: .55;
+      }
+
+      .axis path,
+      .axis line {
+        fill: none;
+        stroke: #000;
+        shape-rendering: crispEdges;
+      }
+
+      .brush .extent {
+        stroke: #fff;
+        fill-opacity: .125;
+        shape-rendering: crispEdges;
+      }
+
+    </style>
+
+    <style type="text/css">
+
+</style>
+      
+    <!-- JQuery UI JS -->
+    <script src="http://code.jquery.com/jquery.js"></script>
+    <script src="http://code.jquery.com/ui/1.10.3/jquery-ui.js"></script>
+    <script src="/js/d3.v3.js"></script>
+
+    <script>
+
+      $(document).ready(function() {
+
+        var globalData;
+
+        var MS_PER_MINUTE = 60000; 
+        var maxDate, minDate, dateEndTraining, dateStartTraining;
+        
+        var dateStartZoom;
+        var dateEndZoom;
+        
+        $('#station').prop('selectedIndex', -1)
+
+        $('#area1').click(function () {
+            $('#station').val(14015).trigger('change');
+        });
+
+        $('#area2').click(function () {
+            $('#station').val(14015).trigger('change');
+        });
+
+        $('#area3').click(function () {
+            $('#station').val(14015).trigger('change');
+        });
+
+        $('#area4').click(function () {
+            $('#station').val(14015).trigger('change');
+        });
+
+        $('#area8').click(function () {
+            $('#station').val(23034).trigger('change');
+        });
+
+        $('#station').change(function() {
+          var Jdata = new Object();
+          Jdata.station = $('#station').val();
+          
+          $.ajax({
+            url : "/daterange",
+            type : "POST",
+            data : JSON.stringify(Jdata),
+            contentType : "application/json; charset=utf-8",
+            dataType : "json",
+            success: function(serverData) {
+               minDate = new Date(serverData['from']['$date']);
+               maxDate = new Date(serverData['to']['$date']);
+               $("#slider-range").slider("option", "disabled", false);
+               $("#slider-range").slider("option", "max", Math.floor((maxDate.getTime() - minDate.getTime()) / 86400000));
+               $("#slider-range").slider("option", "values", [0, Math.floor((maxDate.getTime() - minDate.getTime()) / 86400000)]);
+               dateStartTraining = new Date(minDate.getTime());
+               dateEndTraining = new Date(maxDate.getTime());
+               $("#dateRange").val( $.datepicker.formatDate('dd/mm/yy', dateStartTraining) + " - " + $.datepicker.formatDate('dd/mm/yy', dateEndTraining) ); 
+            },
+            failure: function(errMsg) {
+              alert(errMsg);
+            }
+          });
+        });
+
+        $("#slider-range").slider({
+              range: true,
+              min: 0,
+              max: 100,
+              values: [0, 50],
+              slide: function( event, ui ) {
+                dateStartTraining = new Date(minDate.getTime());
+                dateEndTraining = new Date(minDate.getTime());
+                dateStartTraining.setDate(dateStartTraining.getDate() + ui.values[0]);
+                dateEndTraining.setDate(dateEndTraining.getDate() + ui.values[1]);
+                $("#dateRange").val( $.datepicker.formatDate('dd/mm/yy', dateStartTraining) + " - " + $.datepicker.formatDate('dd/mm/yy', dateEndTraining) );
+              }
+        });
+
+        $("#slider-range").slider("option", "disabled", true);
+
+        $("#submit").on('click', function(){
+
+          event.preventDefault();
+
+          var Jdata = new Object();
+          Jdata.minDate = dateStartTraining;
+          Jdata.maxDate = dateEndTraining;
+          Jdata.station = $("#station").val();
+          Jdata.variables = $("#variables").val();
+
+          $.ajax({
+            url : "/home",
+            type : "POST",
+            data : JSON.stringify(Jdata),
+            contentType : "application/json; charset=utf-8",
+            dataType : "json",
+            success: function(serverData) {
+              console.log(serverData)
+              serverData.forEach(function(d) {
+                d.date.$date = +d.date.$date;
+                d.data.MeanDHI = +d.data.MeanDHI;
+                d.data.MeanGlobalIrradiance = +d.data.MeanGlobalIrradiance;
+              });
+              plotData();
+            },
+            failure: function(errMsg) {
+              alert(errMsg);
+            }
+          });
+        });
+
+        function plotData() {
+
+          var margin = {top: 10, right: 10, bottom: 100, left: 40},
+              margin2 = {top: 430, right: 10, bottom: 20, left: 40},
+              width = 700 - margin.left - margin.right,
+              height = 500 - margin.top - margin.bottom,
+              height2 = 500 - margin2.top - margin2.bottom;
+
+          var x = d3.time.scale().range([0, width]),
+              x2 = d3.time.scale().range([0, width]),
+              y = d3.scale.linear().range([height, 0]),
+              y2 = d3.scale.linear().range([height2, 0]);
+
+          var xAxis = d3.svg.axis().scale(x).orient("bottom"),
+              xAxis2 = d3.svg.axis().scale(x2).orient("bottom"),
+              yAxis = d3.svg.axis().scale(y).orient("left");
+
+          var brush = d3.svg.brush()
+              .x(x2)
+              .on("brush", brushed);
+
+          var area = d3.svg.area()
+              .interpolate("monotone")
+              .x(function(d) { return x(d.date); })
+              .y0(height)
+              .y1(function(d) { return y(d.Y); });
+
+          var area2 = d3.svg.area()
+              .interpolate("monotone")
+              .x(function(d) { return x2(d.date); })
+              .y0(height2)
+              .y1(function(d) { return y2(d.Y); });
+
+          var Barea = d3.svg.area()
+              .interpolate("monotone")
+              .x(function(d) { return x(d.date); })
+              .y0(height)
+              .y1(function(d) { return y(d.Pred); });
+
+          var Barea2 = d3.svg.area()
+              .interpolate("monotone")
+              .x(function(d) { return x2(d.date); })
+              .y0(height2)
+              .y1(function(d) { return y2(d.Pred); });
+
+          d3.select("svg").remove();
+
+          var svg = d3.select("#plotPlacer").append("svg")
+              .attr("width", width + margin.left + margin.right)
+              .attr("height", height + margin.top + margin.bottom);
+
+          svg.append("defs").append("clipPath")
+             .attr("id", "clip")
+             .append("rect")
+             .attr("width", width)
+             .attr("height", height);
+
+          var focus = svg.append("g").attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+          var context = svg.append("g").attr("transform", "translate(" + margin2.left + "," + margin2.top + ")");
+
+          x.domain(d3.extent(globalData, function(d) { return d.date; }));
+          y.domain([0, d3.max(globalData, function(d) { return d.Y; })]);
+          x2.domain(x.domain());
+          y2.domain(y.domain());
+
+          focus.append("path")
+               .datum(globalData)
+               .attr("clip-path", "url(#clip)")
+               .attr("id", "graph1")
+               .attr("class", "class1")
+               .attr("d", area);
+
+          focus.append("path")
+               .datum(globalData)
+               .attr("clip-path", "url(#clip)")
+               .attr("id", "graph2")
+               .attr("class", "class2")
+               .attr("d", Barea);
+
+          focus.append("g")
+               .attr("class", "x axis")
+               .attr("transform", "translate(0," + height + ")")
+               .call(xAxis);
+
+          focus.append("g")
+               .attr("class", "y axis")
+               .call(yAxis);
+
+          context.append("path")
+                 .datum(globalData)
+                 .attr("class", "class1")
+                 .attr("d", area2);
+
+          context.append("path")
+                 .datum(globalData)
+                 .attr("class", "class2")
+                 .attr("d", Barea2);
+
+          context.append("g")
+                 .attr("class", "x axis")
+                 .attr("transform", "translate(0," + height2 + ")")
+                 .call(xAxis2);
+
+          context.append("g")
+                 .attr("class", "x brush")
+                 .call(brush)
+                 .selectAll("rect")
+                 .attr("y", -6)
+                 .attr("height", height2 + 7);
+    
+
+          function brushed() {
+            x.domain(brush.empty() ? x2.domain() : brush.extent());
+            focus.select("#graph1").attr("d", area);
+            focus.select("#graph2").attr("d", Barea);
+            focus.select(".x.axis").call(xAxis);
+          }
+        }
+      });
+
+  	</script>
+
+  	<body>
+
+      <!-- Navbar ================================================== -->
+      <div class="navbar navbar-fixed-top">
+        <div class="navbar-inner">
+          <div class="container">
+            <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+              <span class="icon-bar"></span>
+            </a>
+            <a class="brand" href="../">Arena</a>
+            <div class="nav-collapse collapse" id="main-menu">
+              <ul class="nav" id="main-menu-left">
+                <li><a id="swatch-link" href="../#gallery">Gallery</a></li>
+                <li class="dropdown">
+                  <a class="dropdown-toggle" data-toggle="dropdown" href="#">Preview <b class="caret"></b></a>
+                  <ul class="dropdown-menu" id="swatch-menu">
+                    <li>Default</li>
+                    <li class="divider"></li>
+                    <li>Amelia</li>
+                  </ul>
+                </li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      </div>
+
+<div class="container">
+
+
+<!-- Masthead
+================================================== -->
+<header class="jumbotron subhead" id="overview">
+  <div class="row">
+    <div class="span6">
+      <h1></h1>
+    </div>
+  </div>
+  <div class="row">
+    <div class="span6">
+      <h1></h1>
+    </div>
+  </div>
+  <div class="row">
+    <div class="span6">
+      <h1></h1>
+    </div>
+  </div>
+
+
+</header>
+
+<!-- Forms
+================================================== -->
+<section id="forms">
+  <div class="page-header">
+    <h3>Integrated Solar Data</h3>
+  </div>
+
+  <div class="row">
+    <div class="span10 offset1">
+
+      <form class="well form-search">
+        <div class="control-group">
+          <label class="control-label" for="select01">Select Station:</label>
+          <div class="controls">
+            <select id="station">
+              <option value="23034">Adelaide Airport</option>
+              <option value="15590">Alice Springs Airport</option>
+              <option value="3003">Broome Airport</option>
+              <option value="31011">Cairns Airport</option>
+              <option value="91148">Cape Grim</option>
+              <option value="200284">Cocos Island Airport</option>
+              <option value="14015">Darwin Airport</option>
+              <option value="8051">Geraldton Airport</option>
+              <option value="91148">Kalgoorlie-Boulder Airport</option>
+              <option value="5007">Learmonth Airport</option>
+              <option value="86282">Melbourne Airport</option>
+              <option value="76031">Mildura Airport</option>
+              <option value="26021">Mount Gambier Airport</option>
+              <option value="39083">Rockhampton Airport</option>
+              <option value="15135">Tennant Creek Airport</option>
+              <option value="72150">Wagga Wagga</option>
+            </select>
+            <img src="/img/map.png" alt="Australia Map" align="right" usemap="#australia">
+            <map name="australia">
+              <area shape="circle" id="area1" coords="187,30,11" title="Darwin Airport" href="#">
+              <area shape="circle" id="area2" coords="119,76,11" title="Broome Airport" href="#">
+              <area shape="circle" id="area3" coords="60,112,11" title="Learmonth Airport" href="#">
+              <area shape="circle" id="area4" coords="63,159,11" title="Geraldton Airport" href="#">
+              <area shape="circle" id="area5" coords="116,175,11" title="Kalgoorlie-Boulder Airport" href="#">
+              <area shape="circle" id="area6" coords="284,259,11" title="Cape Grim" href="#">
+              <area shape="circle" id="area7" coords="286,230,11" title="Melbourne Airport" href="#">
+              <area shape="circle" id="area8" coords="240,217,11" title="Adelaide Airport" href="#">
+              <area shape="circle" id="area9" coords="268,205,11" title="Mildura Airport" href="#">
+              <area shape="circle" id="area10" coords="304,210,11" title="Wagga Wagga" href="#">
+              <area shape="circle" id="area11" coords="338,119,11" title="Rockhampton Airport" href="#">
+              <area shape="circle" id="area12" coords="295,63,11" title="Cairns Airport" href="#">
+              <area shape="circle" id="area13" coords="209,130,11" title="Alice Springs Airport" href="#">
+              <area shape="circle" id="area14" coords="211,84,11" title="Tennant Creek Airport" href="#">
+              <area shape="circle" id="area15" coords="45,28,11" title="Cocos Island Airport" href="#">
+              <area shape="circle" id="area16" coords="255,239,11" title="Mount Gambier Airport" href="#">
+            </map>
+          </div>
+        </div>
+      </form>
+
+      <form class="well form-search">
+        <div class="control-group">
+          <label class="control-label" for="select01">Select Variables:</label>
+          <div class="controls">
+            <select id="variables" multiple>
+              <option value="MeanDirectIrradiance" selected>Direct Solar Irradiance</option>
+              <option value="MeanDiffuseIrradiance">Diffuse Solar Irradiance</option>
+              <option value="MeanGlobalIrradiance">Global Solar Irradiance</option>
+              <option value="MeanDHI">Direct Horizontal Irradiance</option>
+              <option value="MeanTerrestrialIrradiance">Terrestrial Solar Irradiance</option>
+              <option value="96sunshine">Sunshine Seconds 96</option>
+              <option value="120sunshine">Sunshine Seconds 120</option>
+              <option value="144sunshine">Sunshine Seconds 144</option>
+              <option value="ZenithDistance">Zenith Distance</option>
+            </select>
+            <p></p>
+            <p><i>Hold down the Ctrl / Command (Mac) button to select multiple variables.</i></p>
+          </div>
+        </div>
+      </form>
+
+        <form class="well form-search">
+          <p>
+            <label for="train">Select Date Range:</label>
+            <input type="text" id="dateRange" class="datefield" style="border: 0; font-weight: bold; width: 190px;" />
+          </p>
+
+          <div id="slider-range"></div>
+        </form>
+
+
+      <form class="form-horizontal well">
+        <fieldset>
+          <legend>Get Data</legend>
+            <div id="wrap">
+              <div id="left_col">
+                <button id="submit" type="submit" class="btn btn-primary">Submit</button>
+              </div>
+          </div>
+        </fieldset>
+      </form>
+    </div>
+  </div>
+
+</section>
+
+
+<!-- Typography
+================================================== -->
+<section id="typography">
+  <div class="page-header">
+    <h3>Plots</h3>
+  </div>
+
+  <div class="row">
+    <div class="span10 offset1">
+      <form class="well form-search">
+      <div id="plotPlacer">
+      </div>
+      </form>
+    </div>
+  </div>
+  
+  <div class="row">
+    <div class="span6">
+      <blockquote>
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante.</p>
+        <small>Someone famous in <cite title="Source Title">Source Title</cite></small>
+      </blockquote>
+    </div>
+    <div class="span6">
+      <blockquote class="pull-right">
+        <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Integer posuere erat a ante.</p>
+        <small>Someone famous in <cite title="Source Title">Source Title</cite></small>
+      </blockquote>
+    </div>
+  </div>
+
+</section>
+
+     <!-- Footer
+      ================================================== -->
+      <hr>
+
+      <footer id="footer">
+        <p class="pull-right"><a href="#top">Back to top</a></p>
+        Developed by <a href="http://www.csiro.au/WERU">CSIRO WERU Group</a>. Contact <a href="mailto:roz016@csiro.au">csiro.au</a>.<br/>
+        Based on <a href="http://scikit-learn.org/stable/">SciKit-Learn</a>. <a href="http://www.mongodb.org/?">MongoDB</a>. <a href="http://d3js.org/?">D3</a>. <a href="http://bottlepy.org/">Bottle</a>. <a href="http://twitter.github.com/bootstrap/">Bootstrap</a>.</p>
+      </footer>
+
+</div><!-- /container -->
+
+
+	 </body>
+</html>

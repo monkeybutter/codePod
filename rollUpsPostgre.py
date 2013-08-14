@@ -33,11 +33,16 @@ def rollUp(minLapse=60):
    db = connection[databaseName]
    db.drop_collection(collectionName)
    collectionRollUp = db[collectionName]
+   collection = db[originDBName]
    collectionRollUp.create_index([("stationCode", pymongo.ASCENDING), ("date", pymongo.ASCENDING)], unique=True)
-	   
-   aggResult = collection.aggregate([{"$group": {"_id":"null", "station":{"$addToSet":"$stationCode"}}}])
+   
+   #print 'avant'	   
+   #aggResult = collection.aggregate([{"$group": {"_id":"null", "station":{"$addToSet":"$stationCode"}}}])   
+   #print 'apres'	   
 
-   stationList = aggResult['result'][0]['station']
+   #stationList = aggResult['result'][0]['station']
+   #print stationList
+   stationList = [23034, 15135, 14015, 12038, 15590, 200284, 5007, 3003, 91148, 72150, 8051, 86282, 39083, 76031, 26021, 31011]
 
    for station in stationList:
       print station
@@ -54,9 +59,9 @@ def rollUp(minLapse=60):
       for endHour in mygenerator:
          startHour = endHour - timedelta(minutes=minLapse)
          print station, startHour, endHour
-         cur.execute('SELECT * FROM bom WHERE cdate > %s AND cdate < %s;', startHour, endHour)
+         cur.execute("SELECT count(*) FROM bom WHERE cdate > DATE '2005-01-01' AND cdate < DATE '2005-01-30';")
          # retrieve the records from the database
          records = cur.fetchall()
-         print 'done'
+         print records
 
 rollUp(5)
