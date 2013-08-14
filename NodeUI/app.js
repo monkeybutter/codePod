@@ -5,7 +5,6 @@
 
 var express = require('express')
   , routes = require('./routes')
-  , user = require('./routes/user')
   , http = require('http')
   , path = require('path');
 
@@ -31,6 +30,12 @@ if ('development' == app.get('env')) {
 app.get('/', function(req, res){
    res.render('home.html')
 });
+
+app.post('/daterange', routes.findDateRange);
+
+app.get('/hoe', routes.index);
+
+app.get('/ui', routes.findObsByInterval);
 
 http.createServer(app).listen(app.get('port'), function(){
   console.log('Express server listening on port ' + app.get('port'));
