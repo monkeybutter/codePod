@@ -58,7 +58,7 @@ stations.append(element)
 for station in stations:
 	print station['name']
 	sourcePath = "/Users/SmartWombat/Dropbox/SolarData/Phase1/DC02D_Data_" + station['id'] + "_UTC.csv"
-	destPath = "/Users/SmartWombat/Dropbox/SolarData/Phase2/DC02D_Data_" + station['id'] + "_UTC.csv"
+	destPath = "/Users/SmartWombat/Dropbox/SolarData/Phase2/DC02D_Data_" + station['id'] + "_UTC_Interp.csv"
 
 	source = open(sourcePath, 'rb') # opens the csv file
 	dest = open(destPath, 'wb') # opens the csv file for writing

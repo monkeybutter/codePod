@@ -1,12 +1,11 @@
 from datetime import timedelta, datetime
 import math, calendar, datetime
-from math import pi
 
 def getMeanSolar(datetimeUTC, lon):
-    return datetimeUTC + timedelta(hours=lon / math.pi * 12)
+    return datetimeUTC + timedelta(hours=lon / 15)
 
 def getUTCfromMean(datetimeMean, lon):
-    return datetimeMean - timedelta(hours=lon / math.pi * 12)
+	return datetimeMean - timedelta(hours=lon / 15)
 
 def getTrueSolar(datetimeUTC, lon):
 
@@ -32,7 +31,7 @@ def getTrueSolar(datetimeUTC, lon):
 
 
 def getUTCfromTrue(datetimeTrue, lon):
-	datetimeX = datetimeTrue - timedelta(hours=lon / math.pi * 12)
+	datetimeX = datetimeTrue - timedelta(hours=lon / 15)
 
 	if calendar.isleap(datetimeX.year):
     	# Leap year, 366 days
@@ -51,4 +50,5 @@ def getUTCfromTrue(datetimeTrue, lon):
 	                + (3.6858*(math.sin(3*((((2*math.pi)*DoY)/366.0)+4.871))))\
 	                - (12.47*(math.sin(4*((((2*math.pi)*DoY)/366.0)+4.8718)))))\
 	                / 60.0
+
 	return datetimeX - timedelta(minutes=EoT)
